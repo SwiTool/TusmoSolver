@@ -1,24 +1,28 @@
-const TYPE_SPEED = 10;
+const TYPE_SPEED = 100;
 let realDico = [];
 let dico = [];
 let lastIndex = -1;
 let lastWord = null;
-let isTyping = false;
 let blackListedWords = [];
+window.solverEnabled = false;
 
-chrome.storage.sync.get(["blackListedWords"], function (result) {
-    console.debug("Value currently is " + result.blackListedWords);
-    blackListedWords = result.blacklistedWords
-        ? JSON.parse(result.blacklistedWords)
-        : [];
+chrome.storage.sync.get(
+    ["blackListedWords", "enabled"],
+    function ({ blackListedWords, enabled }) {
+        solverEnabled = enabled;
+        console.debug("Backlisted words", blackListedWords);
+        blackListedWords = blackListedWords ? JSON.parse(blackListedWords) : [];
 
-    blackListedWords.forEach(removeFromDicos);
-});
+        blackListedWords.forEach(removeFromDicos);
+    }
+);
 
+// Fetch dictionary
 fetch(chrome.runtime.getURL("dico.json")).then(async (res) => {
     realDico = JSON.parse(await res.text());
 });
 
+// Add custom css
 var link = document.createElement("link");
 link.href = chrome.runtime.getURL("override.css");
 link.type = "text/css";
@@ -32,77 +36,20 @@ const STATE = {
     IMPOSSIBLE: "-",
 };
 
-const WEIGHT = {
-    a: 5,
-    b: 3,
-    c: 3,
-    d: 3,
-    e: 5,
-    f: 3,
-    g: 3,
-    h: 3,
-    i: 5,
-    j: 2,
-    k: 2,
-    l: 3,
-    m: 3,
-    n: 3,
-    o: 5,
-    p: 2,
-    q: 2,
-    r: 3,
-    s: 3,
-    t: 3,
-    u: 5,
-    v: 2,
-    w: 1,
-    x: 1,
-    y: 4,
-    z: 1,
-};
-
 function removeFromDicos(word) {
     realDico = realDico.filter((w) => w.word !== word);
     dico = dico.filter((w) => w.word !== word);
 }
 
-function getNumTimesLetterInWord(word, letter) {
-    return (word.match(new RegExp(letter, "g")) || []).length;
-}
-
-function getWordWeight(word) {
-    return Array.from(word).reduce((r, c, i) => {
-        const nbTimesUsed = getNumTimesLetterInWord(word.substr(0, i + 1), c);
-        return r + WEIGHT[c] / Math.pow(2, nbTimesUsed);
-    }, 0);
-}
+// function getNumTimesLetterInWord(word, letter) {
+//     return (word.match(new RegExp(letter, "g")) || []).length;
+// }
 
 function getBestWord(list) {
     return {
         word: list[0]?.word,
         score: list[0]?.freq,
     };
-    // const best = list.reduce(
-    //     (res, current) => {
-    //         const score = getWordWeight(current);
-    //         if (res.score < score) {
-    //             res.score = score;
-    //             res.word = current;
-    //         }
-    //         return res;
-    //     },
-    //     {
-    //         word: "",
-    //         score: 0,
-    //     }
-    // );
-    // return best;
-}
-
-function getBestWordFirstLetter() {
-    const best = getBestWord(dico);
-    console.debug(`best word: '${best.word}' with score ${best.score}`);
-    return best.word;
 }
 
 function getCellState(cell) {
@@ -216,51 +163,44 @@ function guessWord(word) {
     if (!word) {
         return console.debug("word empty");
     }
-    isTyping = true;
     Array.from(word.toUpperCase()).forEach((c) => {
         const keyCode = c.charCodeAt(0);
         setTimeout(() => pressKey(keyCode), (timeout += TYPE_SPEED));
     });
-    setTimeout(() => {
-        pressKey(13);
-        isTyping = false;
-    }, (timeout += TYPE_SPEED));
+    setTimeout(() => pressKey(13), (timeout += TYPE_SPEED));
 }
 
 function run() {
+    if (!solverEnabled) {
+        return;
+    }
     const gameColumn = document.getElementsByClassName("game-column")[0];
     if (!gameColumn) {
-        return console.warn("game is not running");
+        return;
     }
     const cells = [...gameColumn.getElementsByClassName("cell-content")];
     if (!cells.length) {
-        return console.warn("game is not running");
+        return;
     }
     const wordLen = cells.length / 6;
     const currentLineStartIndex = cells.findIndex((c) =>
         c.classList.contains(STATE.GUESSING)
     );
     if (lastIndex === currentLineStartIndex) {
-        if (lastWord && !isTyping) {
+        if (lastWord && currentLineStartIndex !== -1) {
             blackListWord(lastWord);
         } else {
-            return console.debug("waiting for new state");
+            return;
         }
     }
     lastIndex = currentLineStartIndex;
-    lastWord = null;
-    if (currentLineStartIndex < 0) {
-        return console.warn("game finished or not running");
+    if (currentLineStartIndex === -1) {
+        return;
     }
-    console.debug({
-        currentLineStartIndex,
-        verif: currentLineStartIndex === 0,
-    });
     if (currentLineStartIndex === 0) {
         dico = [];
-        console.debug("New game");
+        console.debug("new round");
     }
-    const firstTry = currentLineStartIndex === 0;
     const currentGuessCells = cells.slice(
         currentLineStartIndex,
         currentLineStartIndex + wordLen
@@ -269,34 +209,30 @@ function run() {
     const currentWord = currentGuessCells.map(getCellLetter).join("");
 
     let word = "";
-    console.debug({ len: dico.length, verif: dico.length === 0 });
     if (dico.length === 0) {
         dico = realDico.filter(
             (w) => w.word.length === wordLen && w.word[0] === currentWord[0]
         );
     }
-    if (firstTry) {
-        word = getBestWordFirstLetter();
-    } else {
-        const badLetters = cells
-            .filter((c) => c.classList.contains(STATE.IMPOSSIBLE))
-            .map(getCellLetter)
-            .filter((v, i, a) => a.indexOf(v) === i)
-            .join("");
-        const history = getHistory(cells, wordLen);
-        const reg = getReg(history, wordLen, badLetters);
-        const regEx = new RegExp(reg.regexp);
-        let possibleWords = dico
-            .filter((w) => !!w.word.match(regEx))
-            .filter((w) => checkIfLetterIsPresent(w.word, reg.incorrectWords));
-        console.debug(possibleWords.map((w) => w.word));
-        const best = getBestWord(possibleWords);
-        word = best.word;
-        console.log(`best word: '${best.word}' with score ${best.score}`);
-    }
+    const badLetters = cells
+        .filter((c) => c.classList.contains(STATE.IMPOSSIBLE))
+        .map(getCellLetter)
+        .filter((v, i, a) => a.indexOf(v) === i)
+        .join("");
+    const history = getHistory(cells, wordLen);
+    const reg = getReg(history, wordLen, badLetters);
+    const regEx = new RegExp(reg.regexp);
+    let possibleWords = dico
+        .filter((w) => !!w.word.match(regEx))
+        .filter((w) => checkIfLetterIsPresent(w.word, reg.incorrectWords));
+
+    console.debug(possibleWords.map((w) => w.word));
+    const best = getBestWord(possibleWords);
+    word = best.word;
+    console.log(`best word: '${best.word}' with score ${best.score}`);
 
     lastWord = word;
     guessWord(word);
 }
 
-console.log(setInterval(run, 800));
+console.log(setInterval(run, 2000));
