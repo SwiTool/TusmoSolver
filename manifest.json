@@ -1,0 +1,28 @@
+{
+    "manifest_version": 3,
+
+    "name": "Tusmo Solver",
+    "description": "Résoud vos tusmo",
+    "version": "1.0",
+
+    "action": {
+        "default_icon": "icon.png",
+        "default_popup": "popup.html"
+    },
+    "permissions": ["activeTab", "scripting"],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": ["https://*.tusmo.xyz/*"],
+            "js": ["tusmo.js"]
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": ["dico.txt"],
+            "matches": ["https://*.tusmo.xyz/*"]
+        }
+    ]
+}
