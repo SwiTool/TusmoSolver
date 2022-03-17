@@ -7,8 +7,7 @@ let isTyping = false;
 let blackListedWords = [];
 
 chrome.storage.sync.get(["blackListedWords"], function (result) {
-    console.log(result);
-    console.log("Value currently is " + result.blacklistedWords);
+    console.debug("Value currently is " + result.blacklistedWords);
     blackListedWords = result.blacklistedWords
         ? JSON.parse(result.blacklistedWords)
         : [];
@@ -52,19 +51,13 @@ const WEIGHT = {
     z: 1,
 };
 
-fetch(chrome.runtime.getURL("dico.txt")).then(async (res) => {
-    realDico = (await res.text()).split(" ");
+fetch(chrome.runtime.getURL("dico.json")).then(async (res) => {
+    realDico = JSON.parse(await res.text());
 });
 
 function removeFromDicos(word) {
-    const i = realDico.indexOf(word);
-    const j = dico.indexOf(word);
-    if (~i) {
-        realDico.splice(i, 1);
-    }
-    if (~j) {
-        dico.splice(j, 1);
-    }
+    realDico = realDico.filter(w => w.word !== word);
+    dico = dico.filter(w => w.word !== word);
 }
 
 function getNumTimesLetterInWord(word, letter) {
@@ -78,22 +71,31 @@ function getWordWeight(word) {
     }, 0);
 }
 
+function getBestWord (list) {
+    return {
+        word: list[0]?.word,
+        score: list[0]?.freq,
+    };
+    // const best = list.reduce(
+    //     (res, current) => {
+    //         const score = getWordWeight(current);
+    //         if (res.score < score) {
+    //             res.score = score;
+    //             res.word = current;
+    //         }
+    //         return res;
+    //     },
+    //     {
+    //         word: "",
+    //         score: 0,
+    //     }
+    // );
+    // return best;
+}
+
 function getBestWordFirstLetter() {
-    const best = dico.reduce(
-        (res, current) => {
-            const score = getWordWeight(current);
-            if (res.score < score) {
-                res.score = score;
-                res.word = current;
-            }
-            return res;
-        },
-        {
-            word: "",
-            score: 0,
-        }
-    );
-    console.log(`best word: '${best.word}' with score ${best.score}`);
+    const best = getBestWord(dico);
+    console.debug(`best word: '${best.word}' with score ${best.score}`);
     return best.word;
 }
 
@@ -264,7 +266,7 @@ function run() {
     console.debug({ len: dico.length, verif: dico.length === 0 });
     if (dico.length === 0) {
         dico = realDico.filter(
-            (word) => word.length === wordLen && word[0] === currentWord[0]
+            (w) => w.word.length === wordLen && w.word[0] === currentWord[0]
         );
     }
     if (firstTry) {
@@ -279,14 +281,16 @@ function run() {
         const reg = getReg(history, wordLen, badLetters);
         const regEx = new RegExp(reg.regexp);
         let possibleWords = dico
-            .filter((word) => !!word.match(regEx))
-            .filter((word) => checkIfLetterIsPresent(word, reg.incorrectWords));
-        console.log(possibleWords);
-        word = possibleWords[0];
+            .filter((w) => !!w.word.match(regEx))
+            .filter((w) => checkIfLetterIsPresent(w.word, reg.incorrectWords));
+        console.debug(possibleWords.map(w => w.word));
+        const best = getBestWord(possibleWords);
+        word = best.word;
+        console.log(`best word: '${best.word}' with score ${best.score}`);
     }
 
     lastWord = word;
     guessWord(word);
 }
 
-console.log(setInterval(run, 1000));
+console.log(setInterval(run, 2000));
