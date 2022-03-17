@@ -1,4 +1,4 @@
-const TYPE_SPEED = 50;
+const TYPE_SPEED = 10;
 let realDico = [];
 let dico = [];
 let lastIndex = -1;
@@ -7,13 +7,23 @@ let isTyping = false;
 let blackListedWords = [];
 
 chrome.storage.sync.get(["blackListedWords"], function (result) {
-    console.debug("Value currently is " + result.blacklistedWords);
+    console.debug("Value currently is " + result.blackListedWords);
     blackListedWords = result.blacklistedWords
         ? JSON.parse(result.blacklistedWords)
         : [];
 
     blackListedWords.forEach(removeFromDicos);
 });
+
+fetch(chrome.runtime.getURL("dico.json")).then(async (res) => {
+    realDico = JSON.parse(await res.text());
+});
+
+var link = document.createElement("link");
+link.href = chrome.runtime.getURL("override.css");
+link.type = "text/css";
+link.rel = "stylesheet";
+document.getElementsByTagName("head")[0].appendChild(link);
 
 const STATE = {
     GUESSING: "bg-sky-600",
@@ -51,13 +61,9 @@ const WEIGHT = {
     z: 1,
 };
 
-fetch(chrome.runtime.getURL("dico.json")).then(async (res) => {
-    realDico = JSON.parse(await res.text());
-});
-
 function removeFromDicos(word) {
-    realDico = realDico.filter(w => w.word !== word);
-    dico = dico.filter(w => w.word !== word);
+    realDico = realDico.filter((w) => w.word !== word);
+    dico = dico.filter((w) => w.word !== word);
 }
 
 function getNumTimesLetterInWord(word, letter) {
@@ -71,7 +77,7 @@ function getWordWeight(word) {
     }, 0);
 }
 
-function getBestWord (list) {
+function getBestWord(list) {
     return {
         word: list[0]?.word,
         score: list[0]?.freq,
@@ -283,7 +289,7 @@ function run() {
         let possibleWords = dico
             .filter((w) => !!w.word.match(regEx))
             .filter((w) => checkIfLetterIsPresent(w.word, reg.incorrectWords));
-        console.debug(possibleWords.map(w => w.word));
+        console.debug(possibleWords.map((w) => w.word));
         const best = getBestWord(possibleWords);
         word = best.word;
         console.log(`best word: '${best.word}' with score ${best.score}`);
@@ -293,4 +299,4 @@ function run() {
     guessWord(word);
 }
 
-console.log(setInterval(run, 2000));
+console.log(setInterval(run, 800));

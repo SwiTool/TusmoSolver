@@ -21,7 +21,7 @@
     ],
     "web_accessible_resources": [
         {
-            "resources": ["dico.json"],
+            "resources": ["dico.json", "override.css"],
             "matches": ["https://*.tusmo.xyz/*"]
         }
     ]
