@@ -160,6 +160,9 @@ function checkIfLetterIsPresent(string, substring) {
 
 function run() {
     const gameColumn = document.getElementsByClassName("game-column")[0];
+    if (!gameColumn) {
+        return console.warn("game is not running");
+    }
     const cells = [...gameColumn.getElementsByClassName("cell-content")];
     if (!cells.length) {
         return console.warn("game is not running");
@@ -168,6 +171,9 @@ function run() {
     const currentLineStartIndex = cells.findIndex((c) =>
         c.classList.contains(STATE.GUESSING)
     );
+    if (currentLineStartIndex < 0) {
+        return console.warn("game finished or not running");
+    }
     console.log({ currentLineStartIndex, verif: currentLineStartIndex === 0 });
     if (currentLineStartIndex === 0) {
         dico = [];
@@ -196,10 +202,9 @@ function run() {
     } else {
         const badLetters = cells
             .filter((c) => c.classList.contains(STATE.IMPOSSIBLE))
-            .map((c) => c.innerText)
+            .map(getCellLetter)
             .filter((v, i, a) => a.indexOf(v) === i)
-            .join("")
-            .toLowerCase();
+            .join("");
         const history = getHistory(cells, wordLen);
         const reg = getReg(history, wordLen, badLetters);
         const regEx = new RegExp(reg.regexp);
