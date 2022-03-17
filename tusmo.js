@@ -1,5 +1,20 @@
+const TYPE_SPEED = 50;
 let realDico = [];
 let dico = [];
+let lastIndex = -1;
+let lastWord = null;
+let isTyping = false;
+let blackListedWords = [];
+
+chrome.storage.sync.get(["blackListedWords"], function (result) {
+    console.log(result);
+    console.log("Value currently is " + result.blacklistedWords);
+    blackListedWords = result.blacklistedWords
+        ? JSON.parse(result.blacklistedWords)
+        : [];
+
+    blackListedWords.forEach(removeFromDicos);
+});
 
 const STATE = {
     GUESSING: "bg-sky-600",
@@ -41,6 +56,17 @@ fetch(chrome.runtime.getURL("dico.txt")).then(async (res) => {
     realDico = (await res.text()).split(" ");
 });
 
+function removeFromDicos(word) {
+    const i = realDico.indexOf(word);
+    const j = dico.indexOf(word);
+    if (~i) {
+        realDico.splice(i, 1);
+    }
+    if (~j) {
+        dico.splice(j, 1);
+    }
+}
+
 function getNumTimesLetterInWord(word, letter) {
     return (word.match(new RegExp(letter, "g")) || []).length;
 }
@@ -68,6 +94,7 @@ function getBestWordFirstLetter() {
         }
     );
     console.log(`best word: '${best.word}' with score ${best.score}`);
+    return best.word;
 }
 
 function getCellState(cell) {
@@ -158,6 +185,40 @@ function checkIfLetterIsPresent(string, substring) {
     });
 }
 
+function pressKey(keyCode) {
+    window.dispatchEvent(new KeyboardEvent("keypress", { keyCode }));
+    window.dispatchEvent(new KeyboardEvent("keyup", { keyCode }));
+}
+
+function blackListWord(word) {
+    if (!blackListedWords.includes(word)) {
+        blackListedWords.push(word);
+        removeFromDicos(word);
+    }
+    chrome.storage.sync.set(
+        { blackListedWords: JSON.stringify(blackListedWords) },
+        function () {
+            console.debug(`'${word}' added to blacklist`);
+        }
+    );
+}
+
+function guessWord(word) {
+    let timeout = 0;
+    if (!word) {
+        return console.debug("word empty");
+    }
+    isTyping = true;
+    Array.from(word.toUpperCase()).forEach((c) => {
+        const keyCode = c.charCodeAt(0);
+        setTimeout(() => pressKey(keyCode), (timeout += TYPE_SPEED));
+    });
+    setTimeout(() => {
+        pressKey(13);
+        isTyping = false;
+    }, (timeout += TYPE_SPEED));
+}
+
 function run() {
     const gameColumn = document.getElementsByClassName("game-column")[0];
     if (!gameColumn) {
@@ -171,13 +232,25 @@ function run() {
     const currentLineStartIndex = cells.findIndex((c) =>
         c.classList.contains(STATE.GUESSING)
     );
+    if (lastIndex === currentLineStartIndex) {
+        if (lastWord && !isTyping) {
+            blackListWord(lastWord);
+        } else {
+            return console.debug("waiting for new state");
+        }
+    }
+    lastIndex = currentLineStartIndex;
+    lastWord = null;
     if (currentLineStartIndex < 0) {
         return console.warn("game finished or not running");
     }
-    console.log({ currentLineStartIndex, verif: currentLineStartIndex === 0 });
+    console.debug({
+        currentLineStartIndex,
+        verif: currentLineStartIndex === 0,
+    });
     if (currentLineStartIndex === 0) {
         dico = [];
-        console.warn("New game");
+        console.debug("New game");
     }
     const firstTry = currentLineStartIndex === 0;
     const currentGuessCells = cells.slice(
@@ -185,13 +258,10 @@ function run() {
         currentLineStartIndex + wordLen
     );
 
-    const currentWord = currentGuessCells
-        .map((c) => c.innerText)
-        .join("")
-        .toLowerCase();
+    const currentWord = currentGuessCells.map(getCellLetter).join("");
 
     let word = "";
-    console.log({ len: dico.length, verif: dico.length === 0 });
+    console.debug({ len: dico.length, verif: dico.length === 0 });
     if (dico.length === 0) {
         dico = realDico.filter(
             (word) => word.length === wordLen && word[0] === currentWord[0]
@@ -212,7 +282,11 @@ function run() {
             .filter((word) => !!word.match(regEx))
             .filter((word) => checkIfLetterIsPresent(word, reg.incorrectWords));
         console.log(possibleWords);
+        word = possibleWords[0];
     }
+
+    lastWord = word;
+    guessWord(word);
 }
 
-console.log(setInterval(run, 2000));
+console.log(setInterval(run, 1000));

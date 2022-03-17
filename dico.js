@@ -1,16 +1,28 @@
-const fs = require('fs')
+const fs = require("fs");
 
-const lines = fs.readFileSync('./Lexique383.tsv').toString('utf-8')
+const lines = fs.readFileSync("./Lexique383.tsv").toString("utf-8");
 
-const words = []
+const words = [];
 
-lines.split('\n').forEach(line => {
-  const word = line.split('\t')[0]
-  if (word.length < 4 || word.length > 9 || word.includes('-') || word.includes(' ')) {
-    return
-  }
-  const withoutAccent = word.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-  words.push(withoutAccent)
-})
+lines.split("\n").forEach((line, index) => {
+    if (index === 0) {
+        // first line is file definition
+        return;
+    }
+    const word = line.split("\t")[0];
+    if (
+        word.length < 4 ||
+        word.length > 9 ||
+        word.includes("-") ||
+        word.includes(" ")
+    ) {
+        return;
+    }
+    const withoutAccent = word.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    words.push(withoutAccent);
+});
 
-fs.writeFileSync('./dico.txt', words.join(' '))
+fs.writeFileSync(
+    "./dico.txt",
+    words.filter((w, i, a) => a.indexOf(w) === i).join(" ")
+);

@@ -9,7 +9,7 @@
         "default_icon": "icon.png",
         "default_popup": "popup.html"
     },
-    "permissions": ["activeTab", "scripting"],
+    "permissions": ["activeTab", "scripting", "storage"],
     "background": {
         "service_worker": "background.js"
     },
