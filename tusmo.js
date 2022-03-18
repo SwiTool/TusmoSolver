@@ -1,4 +1,4 @@
-const TYPE_SPEED = 1;
+const TYPE_SPEED = 20;
 let realDico = [];
 let dico = [];
 let lastIndex = -1;
@@ -44,11 +44,29 @@ function getNumTimesLetterInWord(word, letter) {
     return (word.match(new RegExp(letter, "g")) || []).length;
 }
 
+function getWordWeight(word) {
+    return Array.from(word).reduce((r, c, i) => {
+        const nbTimesUsed = getNumTimesLetterInWord(word.substr(0, i + 1), c);
+        return r + 1 / Math.pow(2, nbTimesUsed);
+    }, 0);
+}
+
 function getBestWord(list) {
-    return {
-        word: list[0],
-        score: 0,
-    };
+    const best = list.reduce(
+        (res, current) => {
+            const score = getWordWeight(current);
+            if (res.score < score) {
+                res.score = score;
+                res.word = current;
+            }
+            return res;
+        },
+        {
+            word: "",
+            score: 0,
+        }
+    );
+    return best;
 }
 
 function getCellState(cell) {
