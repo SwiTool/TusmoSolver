@@ -12,7 +12,7 @@ chrome.storage.sync.get(
         solverEnabled = enabled;
         console.debug("Backlisted words", blackListedWords);
         blackListedWords = blackListedWords ? JSON.parse(blackListedWords) : [];
-
+        blackListedWords = [];
         blackListedWords.forEach(removeFromDicos);
     }
 );
@@ -41,9 +41,9 @@ function removeFromDicos(word) {
     dico = dico.filter((w) => w.word !== word);
 }
 
-// function getNumTimesLetterInWord(word, letter) {
-//     return (word.match(new RegExp(letter, "g")) || []).length;
-// }
+function getNumTimesLetterInWord(word, letter) {
+    return (word.match(new RegExp(letter, "g")) || []).length;
+}
 
 function getBestWord(list) {
     return {
@@ -80,53 +80,72 @@ function getHistory(cells, wordLen) {
     return result;
 }
 
-function getReg(history, wordLen, badLetters) {
-    const myRegx = [];
-    let defaultOption = "[abcdefghijklnmopqrstuvwxyz]";
-    defaultOption = defaultOption.replace(
-        new RegExp(Array.from(badLetters).join("|"), "g"),
-        ""
+function fillFilter(letterFilter, line, letter, wordLen) {
+    const nbPossible = line.filter(
+        (cell) => cell.letter === letter && cell.placement !== "IMPOSSIBLE"
     );
-    for (let i = 0; i < wordLen; ++i) {
-        myRegx.push(defaultOption);
+    const nbImpossible = line.filter(
+        (cell) => cell.letter === letter && cell.placement === "IMPOSSIBLE"
+    );
+    const min = nbPossible.length;
+    const max = nbImpossible.length > 0 ? min : wordLen;
+    if (max === 0) {
+        return;
     }
-    let presentletters = {};
+    if (!letterFilter[[letter]]) {
+        letterFilter[[letter]] = { min: min, max: max };
+    } else {
+        if (min > letterFilter[[letter]].min) {
+            letterFilter[[letter]].min = min;
+        }
+        if (max < letterFilter[[letter]].max) {
+            letterFilter[[letter]].max = max;
+        }
+    }
+}
 
-    for (let y = 0; y < history.length; ++y) {
-        const isPoint = history[y].filter((word) => word.letter === ".");
-        if (isPoint.length > 0) {
-            break;
-        }
-        const currentPresentLetters = {};
-        for (let x = 0; x < wordLen; ++x) {
-            if (history[y][x].placement === "FOUND") {
-                myRegx[x] = history[y][x].letter;
-                if (!currentPresentLetters[history[y][x].letter]) {
-                    currentPresentLetters[history[y][x].letter] = 1;
-                } else {
-                    ++currentPresentLetters[history[y][x].letter];
+function getReg(history, wordLen) {
+    const myRegx = Array(wordLen).fill("[abcdefghijklnmopqrstuvwxyz]");
+
+    let impossibleLetters = "";
+    let letterFilter = {};
+
+    for (let x = 0; x < wordLen; ++x) {
+        for (let y = 0; y < history.length; ++y) {
+            const state = history[y][x].placement;
+            const letter = history[y][x].letter;
+            if (state === undefined) {
+                continue;
+            }
+            if (state === "FOUND") {
+                myRegx[x] = letter;
+            } else if (state === "INCORRECT") {
+                myRegx[x] = myRegx[x].replace(letter, "");
+            } else if (state === "IMPOSSIBLE") {
+                const hasIncorrectLetters =
+                    history[y].filter(
+                        (cell) =>
+                            cell.letter === letter &&
+                            cell.placement === "INCORRECT"
+                    ).length > 0;
+                if (hasIncorrectLetters) {
+                    continue;
+                }
+
+                if (!impossibleLetters.includes(letter)) {
+                    impossibleLetters += letter;
+                }
+                for (let tmpX = 0; tmpX < wordLen; ++tmpX) {
+                    if (myRegx[tmpX].includes("[")) {
+                        myRegx[tmpX] = myRegx[tmpX].replace(letter, "");
+                    }
                 }
             }
-            if (history[y][x].placement === "INCORRECT") {
-                if (badLetters.includes(history[y][x].letter)) {
-                    badLetters = badLetters.replace(history[y][x].letter, "");
-                    return getReg(history, wordLen, badLetters);
-                }
-                myRegx[x] = myRegx[x].replace(history[y][x].letter, "");
-                if (!currentPresentLetters[history[y][x].letter]) {
-                    currentPresentLetters[history[y][x].letter] = 1;
-                } else {
-                    ++currentPresentLetters[history[y][x].letter];
-                }
-            }
+            fillFilter(letterFilter, history[y], letter, wordLen);
         }
-        presentletters = currentPresentLetters;
     }
-    let finalPresentLetters = "";
-    for (const key of Object.keys(presentletters)) {
-        finalPresentLetters += key.repeat(presentletters[key]);
-    }
-    return { regexp: myRegx.join(""), incorrectWords: finalPresentLetters };
+    // console.debug({ finalRegex, impossibleLetters, letterFilter });
+    return { reg: myRegx.join(""), letterFilter };
 }
 
 function checkIfLetterIsPresent(string, substring) {
@@ -138,6 +157,19 @@ function checkIfLetterIsPresent(string, substring) {
             return true;
         }
     });
+}
+
+function checkLetterNbPresence(word, letterFilter) {
+    for (let letter of Object.keys(letterFilter)) {
+        const nbLetterPresence = getNumTimesLetterInWord(word, letter);
+        if (
+            nbLetterPresence < letterFilter[[letter]].min ||
+            nbLetterPresence > letterFilter[[letter]].max
+        ) {
+            return false;
+        }
+    }
+    return true;
 }
 
 function pressKey(keyCode) {
@@ -214,17 +246,16 @@ function run() {
             (w) => w.word.length === wordLen && w.word[0] === currentWord[0]
         );
     }
-    const badLetters = cells
-        .filter((c) => c.classList.contains(STATE.IMPOSSIBLE))
-        .map(getCellLetter)
-        .filter((v, i, a) => a.indexOf(v) === i)
-        .join("");
+
     const history = getHistory(cells, wordLen);
-    const reg = getReg(history, wordLen, badLetters);
-    const regEx = new RegExp(reg.regexp);
+    const { reg, letterFilter } = getReg(history, wordLen);
+    console.debug({ reg, letterFilter });
+    // const reg = getReg(history, wordLen, impossibleLetters);
+    const regEx = new RegExp(reg);
     let possibleWords = dico
         .filter((w) => !!w.word.match(regEx))
-        .filter((w) => checkIfLetterIsPresent(w.word, reg.incorrectWords));
+        .filter((w) => checkLetterNbPresence(w.word, letterFilter));
+    // .filter((w) => checkIfLetterIsPresent(w.word, reg.incorrectWords));
 
     console.debug(possibleWords.map((w) => w.word));
     const best = getBestWord(possibleWords);
