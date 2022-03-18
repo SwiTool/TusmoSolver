@@ -1,4 +1,4 @@
-const TYPE_SPEED = 100;
+const TYPE_SPEED = 1;
 let realDico = [];
 let dico = [];
 let lastIndex = -1;
@@ -17,8 +17,8 @@ chrome.storage.sync.get(
 );
 
 // Fetch dictionary
-fetch(chrome.runtime.getURL("dico.json")).then(async (res) => {
-    realDico = JSON.parse(await res.text());
+fetch(chrome.runtime.getURL("dico.txt")).then(async (res) => {
+    realDico = (await res.text()).split(" ");
 });
 
 // Add custom css
@@ -36,8 +36,8 @@ const STATE = {
 };
 
 function removeFromDicos(word) {
-    realDico = realDico.filter((w) => w.word !== word);
-    dico = dico.filter((w) => w.word !== word);
+    realDico = realDico.filter((w) => w !== word);
+    dico = dico.filter((w) => w !== word);
 }
 
 function getNumTimesLetterInWord(word, letter) {
@@ -46,8 +46,8 @@ function getNumTimesLetterInWord(word, letter) {
 
 function getBestWord(list) {
     return {
-        word: list[0]?.word,
-        score: list[0]?.freq,
+        word: list[0],
+        score: 0,
     };
 }
 
@@ -242,7 +242,7 @@ function run() {
     let word = "";
     if (dico.length === 0) {
         dico = realDico.filter(
-            (w) => w.word.length === wordLen && w.word[0] === currentWord[0]
+            (w) => w.length === wordLen && w[0] === currentWord[0]
         );
     }
 
@@ -252,11 +252,11 @@ function run() {
     // const reg = getReg(history, wordLen, impossibleLetters);
     const regEx = new RegExp(reg);
     let possibleWords = dico
-        .filter((w) => !!w.word.match(regEx))
-        .filter((w) => checkLetterNbPresence(w.word, letterFilter));
-    // .filter((w) => checkIfLetterIsPresent(w.word, reg.incorrectWords));
+        .filter((w) => !!w.match(regEx))
+        .filter((w) => checkLetterNbPresence(w, letterFilter));
+    // .filter((w) => checkIfLetterIsPresent(w, reg.incorrectWords));
 
-    console.debug(possibleWords.map((w) => w.word));
+    console.debug(possibleWords);
     const best = getBestWord(possibleWords);
     word = best.word;
     console.log(`best word: '${best.word}' with score ${best.score}`);
@@ -265,4 +265,4 @@ function run() {
     guessWord(word);
 }
 
-console.log(setInterval(run, 2000));
+console.log(setInterval(run, 1500));
