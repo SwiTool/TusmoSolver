@@ -4,7 +4,7 @@ const lines = fs.readFileSync("./ods6.txt").toString("utf-8").toLowerCase();
 
 const words = [];
 
-lines.split("\n").forEach((word, index) => {
+lines.split("\n").forEach((word) => {
     if (
         word.length < 4 ||
         word.length > 9 ||
@@ -14,7 +14,7 @@ lines.split("\n").forEach((word, index) => {
         return;
     }
     const withoutAccent = word.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    words.push(word);
+    words.push(withoutAccent);
 });
 
 fs.writeFileSync("./dico.txt", words.join(" "));
