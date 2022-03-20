@@ -1,13 +1,17 @@
 const enable = document.getElementById("enable");
+const enabledLabel = document.getElementById("enabled-label");
+
+function refreshEnableCheck() {
+    const enabled = enable.checked;
+    enabledLabel.innerText = enabled ? "Activé" : "Désactivé";
+    return enabled;
+}
 
 // When the button is clicked, inject setPageBackgroundColor into current page
 enable.addEventListener("click", async (e) => {
     let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-    const enabled = e.target.checked;
-    document.getElementById("enabled-label").innerText = enabled
-        ? "Activé"
-        : "Désactivé";
+    const enabled = refreshEnableCheck();
 
     chrome.storage.sync.set({ enabled });
 
@@ -24,3 +28,8 @@ function toggleActivation() {
         solverEnabled = enabled;
     });
 }
+
+chrome.storage.sync.get("enabled", ({ enabled }) => {
+    enable.checked = enabled;
+    refreshEnableCheck();
+});

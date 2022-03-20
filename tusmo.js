@@ -10,9 +10,8 @@ chrome.storage.sync.get(
     ["blackListedWords", "enabled"],
     function ({ blackListedWords, enabled }) {
         solverEnabled = enabled;
-        console.debug("Backlisted words", blackListedWords);
         blackListedWords = blackListedWords ? JSON.parse(blackListedWords) : [];
-        blackListedWords = [];
+        console.debug("Blacklisted words", blackListedWords.sort());
         blackListedWords.forEach(removeFromDicos);
     }
 );
@@ -231,7 +230,7 @@ function run() {
     }
     if (currentLineStartIndex === 0) {
         dico = [];
-        console.debug("new round");
+        // console.debug("new round");
     }
     const currentGuessCells = cells.slice(
         currentLineStartIndex,
